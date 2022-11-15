@@ -5,33 +5,30 @@
 from itertools import product
 
 
-def create_initial_states(number_of_registers):
+def create_initial_states(number_of_registers, num_of_inputs):
+    i1 = tuple(product([True, False], repeat=num_of_inputs))
     i = tuple(([False] * number_of_registers))
-    t = i + (True,)
-    f = i + (False,)
-    return {t, f}
+    return {i + ii1 for ii1 in i1}
 
 
-def get_states(number_of_registers):
-    i = list(product([True, False], repeat=number_of_registers))
-    S = {s + (True,) for s in i}.union({s + (False,) for s in i})
-    return S
+def get_states(number_of_registers, num_of_inputs):
+    i = set(product([True, False], repeat=number_of_registers + num_of_inputs))
+    return i
 
 
-def dfs_on_states(queue: list, update_registers):
+def dfs_on_states(queue: list, update_registers, num_of_inputs):
     S = set()
     to = set()
+    i1 = tuple(product([True, False], repeat=num_of_inputs))
     while queue:
         state = queue.pop(0)
         if state not in S:
             S.add(state)
             out_put_reg = update_registers(state)
-            to_state_true = out_put_reg + (True,)
-            to_state_false = out_put_reg + (False,)
-            to.add((state, (True,), to_state_true))
-            to.add((state, (False,), to_state_false))
-            queue.append(to_state_true)
-            queue.append(to_state_false)
+            for ii1 in i1:
+                to_state_true = out_put_reg + ii1
+                to.add((state, ii1, to_state_true))
+                queue.append(to_state_true)
     return S, to
 
 
@@ -39,7 +36,6 @@ def labels_eval(t: tuple, s: str, start, end):
     index = 1
     out = set()
     for i in range(start, end):
-
         if t[i]:
             out.add(s + str(index))
         index += 1
@@ -47,11 +43,11 @@ def labels_eval(t: tuple, s: str, start, end):
 
 
 def transitionSystemFromCircuit(numberOfInputs, numberOfRegisters, numberOfOutputs, updateRegisters, computeOutputs):
-    I = create_initial_states(numberOfRegisters)
+    I = create_initial_states(numberOfRegisters, numberOfInputs)
     queue = list(I.copy())
 
-    S, to = dfs_on_states(queue, updateRegisters)
-    S = get_states(numberOfRegisters)
+    S, to = dfs_on_states(queue, updateRegisters, numberOfInputs)
+    S = get_states(numberOfRegisters, numberOfInputs)
     AP = set()
     AP.update(['x' + str(i) for i in range(1, numberOfInputs + 1)])
     AP.update(['r' + str(i) for i in range(1, numberOfRegisters + 1)])
