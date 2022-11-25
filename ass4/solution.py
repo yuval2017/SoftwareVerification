@@ -18,13 +18,6 @@ def create_initial_states(Loc0, g0, vars, Eval):
     return frozenset(product(Loc0, filter(lambda x: Eval(g0, x), guu)))
 
 
-def create_states(Loc, vars):
-    vals = [i[1] for i in vars.items()]
-    l_product_eta = product(*vals)
-    guu = [HashableDict(zip(vars.keys(), i)) for i in l_product_eta]
-    return frozenset(product(Loc, guu))
-
-
 def create_to(I, to, effect, Eval):
     def help(initial_state, done_set):
         ans = []
@@ -41,8 +34,7 @@ def create_to(I, to, effect, Eval):
     S = set()
     for i in I:
         ans = ans + help(i, S)
-
-    return S,frozenset(ans)
+    return S, frozenset(ans)
 
 
 def transition_system_from_program_graph(pg, vars, labels):
@@ -56,8 +48,8 @@ def transition_system_from_program_graph(pg, vars, labels):
 
     I = create_initial_states(Loc0, g0, vars, Eval)
     AP = labels.union(Loc)
-    S,to = create_to(I, to, Effect, Eval)
-    L = lambda s: {s}
+    S, to = create_to(I, to, Effect, Eval)
+    L = lambda s: {s[0]}.union(filter(lambda label: Eval(label, s[1]), labels))
     return {'S': S, 'Act': Act, 'to': to, 'I': I, 'AP': AP, 'L': L}
 
 
@@ -109,5 +101,7 @@ def print_hi(name):
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
-    i = transition_system_from_program_graph(pg, vars, labels)
+    gp = transition_system_from_program_graph(pg, vars, labels)
+    ss = gp.get('L')(('select', {'ncoke': 1, 'nsprite': 1}))
+
     j = 1
