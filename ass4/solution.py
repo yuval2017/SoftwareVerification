@@ -72,7 +72,7 @@ def effect(act, eta):
         'get_sprite': lambda eta: {**eta, 'nsprite': eta['nsprite'] - 1},
     }[act](eta)
 
-
+#ff
 pg = {
     'Loc': {'start', 'select'},
     'Loc0': {'start'},
