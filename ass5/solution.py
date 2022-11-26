@@ -33,16 +33,6 @@ ts2 = {'S': {'s4', 's5'},
        'L': {}}
 
 
-def transition_system_from_program_graph(pg, vars, labels):
-    Loc = pg.get('Loc')
-    Loc0 = pg.get('Loc0')
-    Act = pg.get('Act')
-    Eval = pg.get('Eval')
-    Effect = pg.get('Effect')
-    to = pg.get('to')
-    g0 = pg.get('g0')
-
-
 def create_to_and_S(I, to1, to2, h, Act):
     def help_dfs(initial, to1, to2, S, h):
         ans = []
