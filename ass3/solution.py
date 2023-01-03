@@ -32,7 +32,7 @@ def dfs_on_states(queue: list, update_registers, num_of_inputs):
     return S, to
 
 
-def labels_eval(t: tuple, s: str, start, end):
+def labels_eval(t, s: str, start, end):
     index = 1
     out = set()
     for i in range(start, end):
@@ -53,7 +53,7 @@ def transitionSystemFromCircuit(numberOfInputs, numberOfRegisters, numberOfOutpu
     AP.update(['r' + str(i) for i in range(1, numberOfRegisters + 1)])
     AP.update(['y' + str(i) for i in range(1, numberOfOutputs + 1)])
 
-    L = lambda s: labels_eval(computeOutputs(s), 'y', 0, numberOfInputs).union(
+    L = lambda s: labels_eval([computeOutputs(s)], 'y', 0, numberOfInputs).union(
         labels_eval(s, 'x', numberOfRegisters, len(s))).union(labels_eval(s, 'r', 0, numberOfRegisters))
     return {'S': S, 'I': I, 'Act': {(True,), (False,)}, 'to': to, 'AP': AP, 'L': L}
 
@@ -65,9 +65,9 @@ def print_hi(name):
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
-    SP = transitionSystemFromCircuit(1, 2, 1, lambda s: ((s[2] and s[1]) ^ s[0], s[2] ^ s[1]),
-                                     lambda s: (s[0] and s[1] and s[2],))
-    d = SP.get('L')((True, True, True))
+    SP = transitionSystemFromCircuit(1, 2, 1, lambda s: ((s[0] ^ (not s[2])), s[2] ^ s[0]),
+                                     lambda s: ((s[0] ^ s[2]) and (s[2] or s[1])))
+    x = [(s,SP.get('L')(s)) for s in SP.get('S')]
     i = 1
 
 # See PyCharm help at https://www.jetbrains.com/help/pycharm/
