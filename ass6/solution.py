@@ -3,6 +3,7 @@
 # Press ⌃R to execute it or replace it with your code.
 # Press Double ⇧ to search everywhere for classes, files, tool windows, actions, and settings.
 import re
+
 from functools import reduce
 from itertools import product, chain, combinations
 
@@ -91,13 +92,47 @@ a = {'q': {'q3', 'q0', 'q1', 'q2'}, 'sigma': {'a', 'b', 'c'},
                ('q1', 'b and not c and not a', 'q1')}, 'q0': {'q0'}, 'f': {'q3'}}
 
 
+def gnba_helper(k, delta, q, q0, f):
+    delta_new = set()
+    for i, fi in enumerate(f, 1):
+
+        for s, a, t in delta:
+            if s in fi:
+                delta_new = delta_new | {(((s, i), a, (t, (i % k) + 1)))}
+            else:
+                delta_new = delta_new | {(((s, i), a, (t, i)))}
+    q0_new = set(product(q0, [1]))
+    q_new = set(product(q, list(range(1, k + 1))))
+    f_new = set(product(f[0], [1]))
+    return delta_new, q_new, q0_new, f_new
+
+
+def gnba_to_nba(g):
+    sigma = g.get('sigma')
+    delta = g.get('delta')
+    q = g.get('q')
+    q0 = g.get('q0')
+    f = g.get('f')
+    delta_new, q_new, q0_new, f_new = gnba_helper(len(f), delta, q, q0, f)
+    return {'q': q_new, 'sigma': sigma, 'delta': delta_new, 'q0': q0_new, 'f': f_new}
+
+
+gnba = {'q': {'q2', 'q1', 'q0'},
+        'sigma': {'true', 'not a', 'a'},
+        'delta': {('q1', 'a', 'q0'), ('q1', 'not a', 'q2'), ('q0', 'true', 'q1'), ('q1', 'true', 'q1'),
+                  ('q2', 'true', 'q1')},
+        'q0': {'q1'},
+        'f': [{'q0'}, {'q2'}]
+        }
+
+
 def print_hi(name):
     pass
 
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
-    ans = TS_times_A(ts, a, _upholds)
+    ans = gnba_to_nba(gnba)
     print_hi('PyCharm')
 
 # See PyCharm help at https://www.jetbrains.com/help/pycharm/
