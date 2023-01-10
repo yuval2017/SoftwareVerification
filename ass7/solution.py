@@ -156,50 +156,57 @@ def if_and_only_if(A_bool, B_bool):
 
 def get_q(clouser):
     def max_check(B):
-        return all(implies((not phi in B), (Not(phi) in B)) for phi in clouser)
+        return all(implies((phi not in B), (Not(phi) in B)) for phi in clouser)
 
     def locality_trace_check(B):
-        unarity_exprs = set(filter(lambda x: x.op == 'U', clouser))
+        unarity_exprs = set(filter(lambda x: isinstance(x, Until), clouser))
         return all(
             implies((phi.phi2 in B), (phi in B)) and implies(((phi in B) and (phi.phi2 not in B)), phi.phi1 in B) for
             phi in unarity_exprs)
 
     def logic_trace_check(B):
         true_is_in_closer = any(Literal(True) == phi for phi in clouser)
-        and_exprs = frozenset(filter(lambda x: x.op == '/\\', clouser))
+        and_exprs = frozenset(filter(lambda x: isinstance(x, And), clouser))
         return all(((implies((phi in B), ((phi.phi1 in B) and (phi.phi2 in B))),
                      implies(((phi.phi1 in B) and (phi.phi2 in B)), (phi in B)))) for phi in and_exprs) and (all(
-            implies((phi in B), (Not(phi) in B)) for phi in B)) and (implies(true_is_in_closer, (Literal(True) in B)))
+            implies((phi in B), (Not(phi) not in B)) for phi in B)) and (
+                   implies(true_is_in_closer, (Literal(True) in B)))
 
+    subsets = get_all_subsets(clouser)
     return frozenset(
-        filter(lambda B: max_check(B) and logic_trace_check(B) and locality_trace_check(B), get_all_subsets(clouser)))
+        filter(lambda B: max_check(B) and logic_trace_check(B) and locality_trace_check(B), subsets))
 
 
 def get_to(q_0, q, closure):
     def check_cond_1(B):
-        next_exprs = filter(lambda phi: phi.op == 'O', closure)
+        next_exprs = filter(lambda phi: isinstance(phi, Next), closure)
         return frozenset(
             filter(lambda B_tag: all(if_and_only_if((phi in B), (phi.phi in B_tag)) for phi in next_exprs), q))
 
     def check_cond_2(B):
-        unarity_exprs = frozenset(filter(lambda x: x.op == 'U', closure))
-        return frozenset(filter(
+        unarity_exprs = frozenset(filter(lambda x: isinstance(x, Until), closure))
+        cond1 = frozenset(filter(
             lambda B_tag: all(implies(((phi in B) and (phi.phi2 not in B)), (phi in B_tag)) for phi in unarity_exprs),
-            q)) & frozenset(filter(
+            q))
+        cond2 = frozenset(filter(
             lambda B_tag: all(
                 implies(((phi not in B) and (phi.phi1 in B)), (phi not in B_tag)) for phi in unarity_exprs),
             q))
+        ans = cond1 & cond2
+        return ans
 
     def dfs_helper(initial, q_set):
         delta = frozenset()
+        A = frozenset(filter(lambda x: isinstance(x, Literal), (initial.difference({Literal(True)}))))
         if initial not in q_set:
+            q_set = q_set | {initial}
             all_to_opt = check_cond_1(initial) & check_cond_2(initial)
             for curr_q in all_to_opt:
                 curr_q, curr_delta = dfs_helper(curr_q, q_set)
                 delta = delta | curr_delta
                 q_set = q_set | curr_q
-            return q_set, delta
-        return frozenset()
+            return q_set, (delta | frozenset([(initial, A, B_tag) for B_tag in all_to_opt]))
+        return frozenset(), frozenset()
 
     ans_q = frozenset()
     ans_delta = frozenset()
@@ -210,11 +217,23 @@ def get_to(q_0, q, closure):
     return ans_q, ans_delta
 
 
+def get_f(closure, q):
+    unarity_exprs = frozenset(filter(lambda x: isinstance(x, Until), closure))
+    ans = frozenset()
+    for unarity in unarity_exprs:
+        curr = frozenset(filter(lambda B: (unarity not in B) or (unarity.phi2 in B), q))
+        ans = ans | {curr}
+    return ans
+
+
 def ltl_to_gnba(phi):
     clouser = phi.sub()
     q = get_q(clouser)
-    q_0 = set(filter(lambda B: (phi in B), q))
+    q_0 = frozenset(filter(lambda B: (phi in B), q))
     q_new, delta = get_to(q_0, q, clouser)
+    sigma = frozenset([str(literal) for literal in frozenset(filter(lambda phi: isinstance(phi, Literal), clouser))])
+    f = get_f(clouser, q)
+    return {'q': q_new, 'sigma': sigma, 'delta': delta, 'q0': q_0, 'f': f}
 
 
 def print_hi(name):
@@ -232,7 +251,7 @@ class HashableSet(set):
 def get_ts():
     def function_creator(B, contidion, q):
         A = frozenset(filter(lambda x: isinstance(x, Literal), (B.difference({Literal(True)}))))
-        tis = set(filter(lambda B_tag: contidion(B_tag), q))
+        tis = frozenset(filter(lambda B_tag: contidion(B_tag), q))
         return frozenset(map(lambda B_tag: (frozenset(B), A, frozenset(B_tag)), tis))
 
     a = Literal('a')
@@ -241,28 +260,31 @@ def get_ts():
     a_until_b = Until(a, b)
     phi = Until(t, Not(a_until_b))
     B_1 = frozenset((a, Not(b), Not(a_until_b), phi, t))
-    B_2 = frozenset((Not(a), Not(b), Not(a_until_b), phi, t))
+    B_2 = frozenset((a, Not(b), a_until_b, phi, t))
     B_3 = frozenset((a, b, a_until_b, phi, t))
     B_4 = frozenset((Not(a), b, a_until_b, phi, t))
-    B_5 = frozenset((a, Not(b), a_until_b, phi, t))
-    B_6 = frozenset((a, b, a_until_b, Not(phi), t))
-    B_7 = frozenset((Not(a), b, a_until_b, Not(phi), t))
+    B_5 = frozenset((Not(a), Not(b), Not(a_until_b), phi, t))
+    B_6 = frozenset((Not(a), b, a_until_b, Not(phi), t))
+    B_7 = frozenset((a, b, a_until_b, Not(phi), t))
     B_8 = frozenset((a, Not(b), a_until_b, Not(phi), t))
     q = {B_1, B_2, B_3, B_4, B_5, B_6, B_7, B_8}
-    q_0 = set(filter(lambda B: (phi in B), q))
+    q_0 = frozenset(filter(lambda B: (phi in B), q))
     f = {frozenset((B_1, B_5, B_6, B_7, B_8)), frozenset((B_1, B_3, B_4, B_5, B_6, B_7))}
 
-    B_1_funcion = function_creator(B_1,(lambda B_tag: a_until_b not in B_tag), q)
-    B_2_function = function_creator(B_2,(lambda B_tag: (a_until_b in B_tag) and (phi in B_tag)), q)
-    B_3_function = function_creator(B_3,(lambda B_tag: phi in B_tag), q)
-    B_4_function = function_creator(B_4,(lambda B_tag: phi in B_tag), q)
-    B_5_function = function_creator(B_5,(lambda B_tag: True), q)
-    B_6_function = function_creator(B_6,(lambda B_tag: a_until_b not in B_tag), q)
-    B_7_function = function_creator(B_7,(lambda B_tag: a_until_b not in B_tag), q)
-    B_8_function = function_creator(B_8,(lambda B_tag: (a_until_b in B_tag) and (phi not in B_tag)), q)
-    sigma = {a,b,t}
-    delta = {B_1_funcion, B_2_function, B_3_function, B_4_function, B_5_function, B_6_function, B_7_function,B_8_function}
-    return {'q':q, 'sigma':sigma,'delta':delta,'q0':q_0,'f':f}
+    B_1_funcion = function_creator(B_1, (lambda B_tag: a_until_b not in B_tag), q)
+    B_2_function = function_creator(B_2, (lambda B_tag: (a_until_b in B_tag) and (phi in B_tag)), q)
+    B_3_function = function_creator(B_3, (lambda B_tag: phi in B_tag), q)
+    B_4_function = function_creator(B_4, (lambda B_tag: phi in B_tag), q)
+    B_5_function = function_creator(B_5, (lambda B_tag: True), q)
+    B_6_function = function_creator(B_6, (lambda B_tag: phi not in B_tag), q)
+    B_7_function = function_creator(B_7, (lambda B_tag: phi not in B_tag), q)
+    B_8_function = function_creator(B_8, (lambda B_tag: (a_until_b in B_tag) and (phi not in B_tag)), q)
+    sigma = {a, b, t}
+    delta = B_1_funcion | B_2_function | B_3_function | B_4_function | B_5_function | B_6_function | B_7_function | B_8_function
+
+    closure = phi.sub()
+
+    return {'q': q, 'sigma': sigma, 'delta': delta, 'q0': q_0, 'f': f}
 
 
 if __name__ == '__main__':
@@ -275,6 +297,7 @@ if __name__ == '__main__':
     t = Literal(True)
     a_until_b = Until(a, b)
     phi = Until(t, Not(a_until_b))
+    curr_try = ltl_to_gnba(phi)
     i = 3
     ts = get_ts()
     i = 1
