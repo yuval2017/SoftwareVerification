@@ -109,6 +109,11 @@ class Until(Binary):
         super().__init__(phi1, phi2, 'U', '\\cup')
 
 
+class And(Binary):
+    def __init__(self, phi1, phi2):
+        super().__init__(phi1, phi2, '/\\', '\\land')
+
+
 class Eventually(Until):
     def __init__(self, phi):
         super().__init__(True, phi)
@@ -122,11 +127,6 @@ class Release(_Not_):
 class Always(_Not_):
     def __init__(self, phi):
         super().__init__(Eventually(Not(phi)))
-
-
-class And(Binary):
-    def __init__(self, phi1, phi2):
-        super().__init__(phi1, phi2, '/\\', '\\land')
 
 
 class Or(_Not_):
@@ -233,7 +233,18 @@ def ltl_to_gnba(phi):
     q_new, delta = get_to(q_0, q, clouser)
     sigma = frozenset([str(literal) for literal in frozenset(filter(lambda phi: isinstance(phi, Literal), clouser))])
     f = get_f(clouser, q)
-    return {'q': q_new, 'sigma': sigma, 'delta': delta, 'q0': q_0, 'f': f}
+
+    def out_put_convert(elements, func):
+        return frozenset([func(e) for e in elements])
+
+    set_to_string_func = lambda B: frozenset([str(y) for y in B])
+
+    string_delta = frozenset(
+        [(set_to_string_func(B), set_to_string_func(A), set_to_string_func(B_tag)) for B, A, B_tag in delta])
+    string_f = frozenset([out_put_convert(Bis, set_to_string_func) for Bis in f])
+
+    return {'q': out_put_convert(q, set_to_string_func), 'sigma': out_put_convert(sigma, str), 'delta': string_delta,
+            'q0': out_put_convert(q, set_to_string_func), 'f': string_f}
 
 
 def print_hi(name):
@@ -284,7 +295,17 @@ def get_ts():
 
     closure = phi.sub()
 
-    return {'q': q, 'sigma': sigma, 'delta': delta, 'q0': q_0, 'f': f}
+    def out_put_convert(elements, func):
+        return frozenset([func(e) for e in elements])
+
+    set_to_string_func = lambda B: frozenset([str(y) for y in B])
+
+    string_delta = frozenset(
+        [(set_to_string_func(B), set_to_string_func(A), set_to_string_func(B_tag)) for B, A, B_tag in delta])
+    string_f = frozenset([out_put_convert(Bis, set_to_string_func) for Bis in f])
+
+    return {'q': out_put_convert(q, set_to_string_func), 'sigma': out_put_convert(sigma, str), 'delta': string_delta,
+            'q0': out_put_convert(q, set_to_string_func), 'f': string_f}
 
 
 if __name__ == '__main__':
@@ -298,6 +319,7 @@ if __name__ == '__main__':
     a_until_b = Until(a, b)
     phi = Until(t, Not(a_until_b))
     curr_try = ltl_to_gnba(phi)
+    q_get = curr_try.get('q')
     i = 3
     ts = get_ts()
     i = 1
