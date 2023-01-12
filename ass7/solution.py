@@ -272,8 +272,9 @@ def get_all_to(q, closure):
 
 
 def get_to(q_0, q, closure):
+
     def check_cond_1(B):
-        next_exprs = filter(lambda phi: isinstance(phi, Next), closure)
+        next_exprs = list(filter(lambda phi: isinstance(phi, Next), closure))
         return frozenset(
             filter(lambda B_tag: all(if_and_only_if((phi in B), (phi.phi in B_tag)) for phi in next_exprs), q))
 
@@ -287,8 +288,7 @@ def get_to(q_0, q, closure):
             lambda B_tag: all(
                 implies_helper(((phi not in B) and (phi.phi1 in B)), (phi not in B_tag)) for phi in unarity_exprs),
             q))
-        ans = cond1 & cond2
-        return ans
+        return cond1 & cond2
 
     def dfs_helper(initial, q_set):
         delta = frozenset()
@@ -329,7 +329,7 @@ def ltl_to_gnba(phi):
     q_0 = frozenset(filter(lambda B: (phi in B), q))
     delta = get_all_to(q, clouser)
     ##not need this
-    # q_sub_opt,_delta_sub_3 = get_to(q_0,q,clouser)
+    #q_sub_opt,_delta_sub_3 = get_to(q_0,q,clouser)
 
     sigma = frozenset([str(literal) for literal in frozenset(filter(lambda phi: isinstance(phi, Literal), clouser))])
     f = get_f(clouser, q)
@@ -491,7 +491,7 @@ if __name__ == '__main__':
     a_until_b = Until(a, b)
     always_a_until_b = Always(Until('a', 'b'))
     print(always_a_until_b)
-    # exp = Not(always_a_until_b)
+    exp = Not(always_a_until_b)
     phi = Until(t, Not(a_until_b))
     curr_try = ltl_to_gnba(phi)
     i = 3
