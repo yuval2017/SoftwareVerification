@@ -145,9 +145,12 @@ class Eventually(Unary):
 #     return _Eventually(phi).simplify()
 
 
-class Release(_Not_):
+class Release(Binary):
     def __init__(self, phi1, phi2):
-        super().__init__(Until(Not(phi1), Not(phi2)))
+        super().__init__(phi1, phi2, 'R', 'Release')
+
+    def simplify(self):
+        return Not((Until(Not(self.phi1.simplify()), Not(self.phi2.simplify()))))
 
 
 # class Always(_Not_):
@@ -184,6 +187,7 @@ class Implies(Binary):
 
     def simplify(self):
         return Or(Not(self.phi1.simplify()), self.phi2.simplify()).simplify()
+
 
 # get all subsets after minimized
 def get_all_subsets(B):
@@ -242,7 +246,6 @@ def get_q(clouser):
 
 
 def get_all_to(q, closure):
-
     def check_cond_1(B):
         next_exprs = list(filter(lambda phi: isinstance(phi, Next), closure))
         return frozenset(
@@ -326,7 +329,7 @@ def ltl_to_gnba(phi):
     q_0 = frozenset(filter(lambda B: (phi in B), q))
     delta = get_all_to(q, clouser)
     ##not need this
-    #q_sub_opt,_delta_sub_3 = get_to(q_0,q,clouser)
+    # q_sub_opt,_delta_sub_3 = get_to(q_0,q,clouser)
 
     sigma = frozenset([str(literal) for literal in frozenset(filter(lambda phi: isinstance(phi, Literal), clouser))])
     f = get_f(clouser, q)
@@ -358,6 +361,7 @@ class HashableSet(set):
         return hash(frozenset(*self))
 
     # Press the green button in the gutter to run the script.
+
 
 # for testing
 def get_ts():
@@ -409,14 +413,61 @@ def get_ts():
             'q0': out_put_convert(q_0, set_to_string_func), 'f': string_f}
 
 
-
 a = Literal('a')
 b = Literal('b')
-delta_test = {(frozenset((Not(And(a, Not(Next(a)))), True, Next(a), Not(a), Until(True , And(a , Not(Next(a)))))), frozenset(), frozenset((True, a, Not(Next(a)), And(a, Not(Next(a))), Until(True , And(a , Not(Next(a))))))), (frozenset((Not(And(a , Not(Next(a)))), True, Not(Next(a)), Not(a), Until(True , And(a, Not(Next(a)))))), frozenset(), frozenset((Not(And(a, Not(Next(a)))), True, Not(Next(a)), Not(a), Until(True , And(a , Not(Next(a))))))), (frozenset((True, a, Not(Next(a)), And(a , Not(Next(a))), Until(True , And(a , Not(Next(a)))))), frozenset({a}), frozenset((Not(And(a , Not(Next(a)))), True, Next(a), Not(Until(True , And(a , Not(Next(a))))), Not(a)))), (frozenset((True, a, Not(Next(a)), And(a , Not((a))), Until(True , And(a ,Not(Next(a)))))), frozenset({a}), frozenset((Not(And(a , Not(Next(a)))), True, Not(Next(a)), Not(a), Until(True ,And(a , Not(Next(a))))))), (frozenset((Not(And(a , Not(Next(a)))), True, Not(Until(True , And(a , Not(Next(a))))), Not(Next(a)), Not(a))), frozenset(), frozenset((Not(And(a , Not(Next(a)))), True, Not(Until(True , And(a , Not(Next(a))))), Not(Next(a)), Not(a)))), (frozenset((True, a, Not(Next(a)), And(a , Not(Next(a))), Until(True , And(a , Not(Next(a)))))), frozenset({a}), frozenset((Not(And(a , Not(Next(a)))), True, Next(a), Not(a), Until(True , And(a , Not(Next(a))))))), (frozenset((Not(And(a , Not(Next(a)))), True, Not(Next(a)), Not(a), Until(True , And(a , Not(Next(a)))))), frozenset(), frozenset((Not(And(a , Not(Next(a)))), True, Next(a), Not(a), Until(True , And(a , Not(Next(a))))))), (frozenset((Not(And(a , Not(Next(a)))), True, Next(a), Not(Until(True , And(a , Not(Next(a))))), Not(a))), frozenset(), frozenset((Not(And(a , Not(Next(a)))), True, Next(a), Not(Until(True , And(a , Not(Next(a))))), a))), (frozenset((Not(And(a , Not(Next(a)))), True, Next(a), a, Until(True , And(a , Not(Next(a)))))), frozenset({a}), frozenset((Not(And(a , Not(Next(a)))), True, Next(a), a, Until(True , And(a , Not(Next(a))))))), (frozenset((Not(And(a , Not(Next(a)))), True, Next(a), Not(a), Until(True , And(a , Not(Next(a)))))), frozenset(), frozenset((Not(And(a , Not(Next(a)))), True, Next(a), a, Until(True , And(a , Not(Next(a))))))), (frozenset((True, a, Not(Next(a)), And(a , Not(Next(a))), Until(True , And(a , Not(Next(a)))))), frozenset({a}), frozenset((Not(And(a , Not(Next(a)))), True, Not(Until(True , And(a , Not(Next(a))))), Not(Next(a)), Not(a)))), (frozenset((Not(And(a , Not(Next(a)))), True, Next(a), a, Until(True , And(a , Not(Next(a)))))), frozenset({a}), frozenset((True, a, Not(Next(a)), And(a , Not(Next(a))), Until(True , And(a , Not(Next(a))))))), (frozenset((Not(And(a , Not(Next(a)))), True, Not(Until(True , And(a , Not(Next(a))))), Not(Next(a)), Not(a))), frozenset(), frozenset((Not(And(a , Not(Next(a)))), True, Next(a), Not(Until(True , And(a , Not(Next(a))))), Not(a)))), (frozenset((Not(And(a , Not(Next(a)))), True, Next(a), Not(Until(True , And(a , Not(Next(a))))), a)), frozenset({a}), frozenset((Not(And(a , Not(Next(a)))), True, Next(a), Not(Until(True , And(a , Not(Next(a))))), a)))}
-
-
-
-
+delta_test = {(frozenset((Not(And(a, Not(Next(a)))), True, Next(a), Not(a), Until(True, And(a, Not(Next(a)))))),
+               frozenset(),
+               frozenset((True, a, Not(Next(a)), And(a, Not(Next(a))), Until(True, And(a, Not(Next(a))))))), (
+              frozenset((Not(And(a, Not(Next(a)))), True, Not(Next(a)), Not(a), Until(True, And(a, Not(Next(a)))))),
+              frozenset(),
+              frozenset((Not(And(a, Not(Next(a)))), True, Not(Next(a)), Not(a), Until(True, And(a, Not(Next(a))))))), (
+              frozenset((True, a, Not(Next(a)), And(a, Not(Next(a))), Until(True, And(a, Not(Next(a)))))),
+              frozenset({a}),
+              frozenset((Not(And(a, Not(Next(a)))), True, Next(a), Not(Until(True, And(a, Not(Next(a))))), Not(a)))), (
+              frozenset((True, a, Not(Next(a)), And(a, Not((a))), Until(True, And(a, Not(Next(a)))))), frozenset({a}),
+              frozenset((Not(And(a, Not(Next(a)))), True, Not(Next(a)), Not(a), Until(True, And(a, Not(Next(a))))))), (
+              frozenset(
+                  (Not(And(a, Not(Next(a)))), True, Not(Until(True, And(a, Not(Next(a))))), Not(Next(a)), Not(a))),
+              frozenset(), frozenset(
+                  (Not(And(a, Not(Next(a)))), True, Not(Until(True, And(a, Not(Next(a))))), Not(Next(a)), Not(a)))), (
+              frozenset((True, a, Not(Next(a)), And(a, Not(Next(a))), Until(True, And(a, Not(Next(a)))))),
+              frozenset({a}),
+              frozenset((Not(And(a, Not(Next(a)))), True, Next(a), Not(a), Until(True, And(a, Not(Next(a))))))), (
+              frozenset((Not(And(a, Not(Next(a)))), True, Not(Next(a)), Not(a), Until(True, And(a, Not(Next(a)))))),
+              frozenset(),
+              frozenset((Not(And(a, Not(Next(a)))), True, Next(a), Not(a), Until(True, And(a, Not(Next(a))))))), (
+              frozenset((Not(And(a, Not(Next(a)))), True, Next(a), Not(Until(True, And(a, Not(Next(a))))), Not(a))),
+              frozenset(),
+              frozenset((Not(And(a, Not(Next(a)))), True, Next(a), Not(Until(True, And(a, Not(Next(a))))), a))), (
+              frozenset((Not(And(a, Not(Next(a)))), True, Next(a), a, Until(True, And(a, Not(Next(a)))))),
+              frozenset({a}),
+              frozenset((Not(And(a, Not(Next(a)))), True, Next(a), a, Until(True, And(a, Not(Next(a))))))), (
+              frozenset((Not(And(a, Not(Next(a)))), True, Next(a), Not(a), Until(True, And(a, Not(Next(a)))))),
+              frozenset(), frozenset((Not(And(a, Not(Next(a)))), True, Next(a), a, Until(True, And(a, Not(Next(a))))))),
+              (frozenset((True, a, Not(Next(a)), And(a, Not(Next(a))), Until(True, And(a, Not(Next(a)))))),
+               frozenset({a}), frozenset(
+                  (Not(And(a, Not(Next(a)))), True, Not(Until(True, And(a, Not(Next(a))))), Not(Next(a)), Not(a)))), (
+              frozenset((Not(And(a, Not(Next(a)))), True, Next(a), a, Until(True, And(a, Not(Next(a)))))),
+              frozenset({a}),
+              frozenset((True, a, Not(Next(a)), And(a, Not(Next(a))), Until(True, And(a, Not(Next(a))))))), (frozenset(
+        (Not(And(a, Not(Next(a)))), True, Not(Until(True, And(a, Not(Next(a))))), Not(Next(a)), Not(a))), frozenset(),
+                                                                                                             frozenset((
+                                                                                                                       Not(And(
+                                                                                                                           a,
+                                                                                                                           Not(Next(
+                                                                                                                               a)))),
+                                                                                                                       True,
+                                                                                                                       Next(
+                                                                                                                           a),
+                                                                                                                       Not(Until(
+                                                                                                                           True,
+                                                                                                                           And(a,
+                                                                                                                               Not(Next(
+                                                                                                                                   a))))),
+                                                                                                                       Not(a)))),
+              (frozenset((Not(And(a, Not(Next(a)))), True, Next(a), Not(Until(True, And(a, Not(Next(a))))), a)),
+               frozenset({a}),
+               frozenset((Not(And(a, Not(Next(a)))), True, Next(a), Not(Until(True, And(a, Not(Next(a))))), a)))}
 
 if __name__ == '__main__':
     print_hi('PyCharm')
