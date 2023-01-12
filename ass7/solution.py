@@ -53,11 +53,18 @@ class Unary(LTL):
     def sub(self):
         return self._sub() | self.phi.sub()
 
+    def simplify(self):
+        return self.create(self.phi.simplify())
+
     def __eq__(self, other):
-        return self.phi == other.phi and self.op == other.op and self.texop == other.texop
+        return isinstance(other, Unary) and self.phi == other.phi and self.op == other.op
 
     def __hash__(self):
         return hash((self.phi, self.op, self.texop))
+
+    @classmethod
+    def create(cls, phi):
+        return cls(phi)
 
 
 class Binary(LTL):
@@ -77,11 +84,18 @@ class Binary(LTL):
     def sub(self):
         return self._sub() | self.phi1.sub() | self.phi2.sub()
 
+    def simplify(self):
+        return self.create(self.phi1.simplify(), self.phi2.simplify())
+
     def __eq__(self, other):
-        return self.phi1 == other.phi1 and self.phi2 == other.phi2 and self.op == other.op and self.texop == other.texop
+        return isinstance(other, Binary) and self.phi1 == other.phi1 and self.phi2 == other.phi2 and self.op == other.op
 
     def __hash__(self):
         return hash((self.phi1, self.phi2, self.op, self.texop))
+
+    @classmethod
+    def create(cls, phi1, phi2):
+        return cls(phi1, phi2)
 
 
 class _Not_(Unary):
@@ -114,9 +128,21 @@ class And(Binary):
         super().__init__(phi1, phi2, '/\\', '\\land')
 
 
-class Eventually(Until):
+# class Eventually(Until):
+#     def __init__(self, phi):
+#         super().__init__(True, phi)
+
+
+class Eventually(Unary):
     def __init__(self, phi):
-        super().__init__(True, phi)
+        super().__init__(phi, 'F', '\\_Eventually')
+
+    def simplify(self):
+        return Until(True, self.phi.simplify())
+
+
+# def Eventually(phi):
+#     return _Eventually(phi).simplify()
 
 
 class Release(_Not_):
@@ -124,55 +150,86 @@ class Release(_Not_):
         super().__init__(Until(Not(phi1), Not(phi2)))
 
 
-class Always(_Not_):
+# class Always(_Not_):
+#     def __init__(self, phi):
+#         super().__init__(Eventually(Not(phi)))
+
+class Always(Unary):
     def __init__(self, phi):
-        super().__init__(Eventually(Not(phi)))
+        super().__init__(phi, 'G', '\\_Always')
+
+    def simplify(self):
+        return Not(Eventually(Not(self.phi.simplify())))
 
 
-class Or(_Not_):
+# class Or(_Not_):
+#     def __init__(self, phi1, phi2):
+#         super().__init__(And(_Not_(phi1), _Not_(phi2)))
+#
+class Or(Binary):
     def __init__(self, phi1, phi2):
-        super().__init__(And(Not(phi1), Not(phi2)))
+        super().__init__(phi1, phi2, '\/', '\\Or')
+
+    def simplify(self):
+        return Not(And(Not(self.phi1.simplify()), Not(self.phi2.simplify())))
 
 
-class Implies(Or):
+# class Implies(Or):
+#     def __init__(self, phi1, phi2):
+#         super().__init__(Not(phi1), phi2)
+
+class Implies(Binary):
     def __init__(self, phi1, phi2):
-        super().__init__(Not(phi1), phi2)
+        super().__init__(phi1, phi2, '->', '\\Implies')
+
+    def simplify(self):
+        return Or(Not(self.phi1.simplify()), self.phi2.simplify()).simplify()
 
 
 def get_all_subsets(B):
     res = [[]]
     for e in B:
-        res += [sub + [e] for sub in res]
+        curr = []
+        for sub in res:
+            if Not(e) not in sub:
+                sub = sub + [e]
+            curr = curr + [sub]
+        res = res + curr
     return frozenset(frozenset(s) for s in res)
 
 
-def implies(A_bool, B_bool):
+def implies_helper(A_bool, B_bool):
     return (not A_bool) or B_bool
 
 
 def if_and_only_if(A_bool, B_bool):
-    return (implies(A_bool, B_bool) and implies(B_bool, A_bool))
+    return (implies_helper(A_bool, B_bool) and implies_helper(B_bool, A_bool))
 
 
 def get_q(clouser):
     def max_check(B):
-        return all(implies((phi not in B), (Not(phi) in B)) for phi in clouser)
+        return all(implies_helper((phi not in B), (Not(phi) in B)) for phi in clouser)
 
     def locality_trace_check(B):
         unarity_exprs = set(filter(lambda x: isinstance(x, Until), clouser))
         return all(
-            implies((phi.phi2 in B), (phi in B)) and implies(((phi in B) and (phi.phi2 not in B)), phi.phi1 in B) for
+            implies_helper((phi.phi2 in B), (phi in B)) and implies_helper(((phi in B) and (phi.phi2 not in B)), phi.phi1 in B) for
             phi in unarity_exprs)
 
     def logic_trace_check(B):
         true_is_in_closer = any(Literal(True) == phi for phi in clouser)
         and_exprs = frozenset(filter(lambda x: isinstance(x, And), clouser))
-        return all(((implies((phi in B), ((phi.phi1 in B) and (phi.phi2 in B))),
-                     implies(((phi.phi1 in B) and (phi.phi2 in B)), (phi in B)))) for phi in and_exprs) and (all(
-            implies((phi in B), (Not(phi) not in B)) for phi in B)) and (
-                   implies(true_is_in_closer, (Literal(True) in B)))
+        return all(((implies_helper((phi in B), ((phi.phi1 in B) and (phi.phi2 in B))),
+                     implies_helper(((phi.phi1 in B) and (phi.phi2 in B)), (phi in B)))) for phi in and_exprs) and (all(
+            implies_helper((phi in B), (Not(phi) not in B)) for phi in B)) and (
+                   implies_helper(true_is_in_closer, (Literal(True) in B)))
 
     subsets = get_all_subsets(clouser)
+    filter_size = len(clouser)
+    if Literal(True) in clouser:
+        subsets = frozenset(filter(lambda x: Literal(True) in x, subsets))
+        filter_size += 1
+    subsets = frozenset(filter(lambda x: len(x) == filter_size/2, subsets))
     return frozenset(
         filter(lambda B: max_check(B) and logic_trace_check(B) and locality_trace_check(B), subsets))
 
@@ -186,11 +243,11 @@ def get_to(q_0, q, closure):
     def check_cond_2(B):
         unarity_exprs = frozenset(filter(lambda x: isinstance(x, Until), closure))
         cond1 = frozenset(filter(
-            lambda B_tag: all(implies(((phi in B) and (phi.phi2 not in B)), (phi in B_tag)) for phi in unarity_exprs),
+            lambda B_tag: all(implies_helper(((phi in B) and (phi.phi2 not in B)), (phi in B_tag)) for phi in unarity_exprs),
             q))
         cond2 = frozenset(filter(
             lambda B_tag: all(
-                implies(((phi not in B) and (phi.phi1 in B)), (phi not in B_tag)) for phi in unarity_exprs),
+                implies_helper(((phi not in B) and (phi.phi1 in B)), (phi not in B_tag)) for phi in unarity_exprs),
             q))
         ans = cond1 & cond2
         return ans
@@ -227,7 +284,8 @@ def get_f(closure, q):
 
 
 def ltl_to_gnba(phi):
-    clouser = phi.sub()
+    clouser = (phi.simplify().sub())
+    clouser.remove(Not(True))
     q = get_q(clouser)
     q_0 = frozenset(filter(lambda B: (phi in B), q))
     q_new, delta = get_to(q_0, q, clouser)
@@ -243,8 +301,12 @@ def ltl_to_gnba(phi):
         [(set_to_string_func(B), set_to_string_func(A), set_to_string_func(B_tag)) for B, A, B_tag in delta])
     string_f = frozenset([out_put_convert(Bis, set_to_string_func) for Bis in f])
 
-    return {'q': out_put_convert(q, set_to_string_func), 'sigma': out_put_convert(sigma, str), 'delta': string_delta,
-            'q0': out_put_convert(q, set_to_string_func), 'f': string_f}
+    # return {'q': frozenset(out_put_convert(q, set_to_string_func)), 'sigma': out_put_convert(sigma, str),
+    #         'delta': string_delta,
+    #         'q0': out_put_convert(q_0, set_to_string_func), 'f': string_f}
+    return {'q': q, 'sigma': sigma,
+                'delta': delta,
+                'q0': q_0, 'f':f}
 
 
 def print_hi(name):
@@ -268,7 +330,7 @@ def get_ts():
     a = Literal('a')
     b = Literal('b')
     t = Literal(True)
-    a_until_b = Until(a, b)
+    a_until_b = _Not_(Until(a, b))
     phi = Until(t, Not(a_until_b))
     B_1 = frozenset((a, Not(b), Not(a_until_b), phi, t))
     B_2 = frozenset((a, Not(b), a_until_b, phi, t))
@@ -305,22 +367,32 @@ def get_ts():
     string_f = frozenset([out_put_convert(Bis, set_to_string_func) for Bis in f])
 
     return {'q': out_put_convert(q, set_to_string_func), 'sigma': out_put_convert(sigma, str), 'delta': string_delta,
-            'q0': out_put_convert(q, set_to_string_func), 'f': string_f}
+            'q0': out_put_convert(q_0, set_to_string_func), 'f': string_f}
 
 
 if __name__ == '__main__':
     print_hi('PyCharm')
-    exp = Not(Always(Until('a', 'b')))
-    print(exp)
+
     s = {1, 2, 3}
     a = Literal('a')
     b = Literal('b')
     t = Literal(True)
-    a_until_b = Until(a, b)
+    always_a = Always('s')
+    print(always_a.simplify().sub())
+    next_a = Next('a')
+    expr = Always(Implies('a', Next('a')))
+    print(expr.sub())
+    print(expr.simplify())
+    a_until_b = Not(Until(a, b))
+    always_a_until_b = Always(Until('a', 'b'))
+    print(always_a_until_b)
+    # exp = Not(always_a_until_b)
     phi = Until(t, Not(a_until_b))
     curr_try = ltl_to_gnba(phi)
-    q_get = curr_try.get('q')
     i = 3
     ts = get_ts()
+    expr2 = Not(Until(t, And(a, Not(Next(a)))))
+    curr_try2 = ltl_to_gnba(expr2)
+    print(curr_try == ts)
     i = 1
 # See PyCharm help at https://www.jetbrains.com/help/pycharm/
