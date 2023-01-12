@@ -196,7 +196,16 @@ def get_all_subsets(B):
             curr = curr + [sub]
         res = res + curr
     return frozenset(frozenset(s) for s in res)
-
+def get_sigma(clouser):
+    all_options =  set(filter(lambda phi: isinstance(phi, Literal), clouser)) - {Literal(True)}
+    res = [[]]
+    for e in all_options:
+        curr = []
+        for sub in res:
+            sub = sub + [e]
+            curr = curr + [sub]
+        res = res + curr
+    return frozenset(frozenset(s) for s in res)
 
 def implies_helper(A_bool, B_bool):
     return (not A_bool) or B_bool
@@ -207,8 +216,6 @@ def if_and_only_if(A_bool, B_bool):
 
 
 def get_q(clouser):
-    def max_check(B):
-        return all(implies_helper((phi not in B), (Not(phi) in B)) for phi in clouser)
 
     def locality_trace_check(B):
         unarity_exprs = set(filter(lambda x: isinstance(x, Until), clouser))
@@ -217,12 +224,11 @@ def get_q(clouser):
             phi in unarity_exprs)
 
     def logic_trace_check(B):
-        true_is_in_closer = any(Literal(True) == phi for phi in clouser)
         and_exprs = frozenset(filter(lambda x: isinstance(x, And), clouser))
         return all(((implies_helper((phi in B), ((phi.phi1 in B) and (phi.phi2 in B))),
-                     implies_helper(((phi.phi1 in B) and (phi.phi2 in B)), (phi in B)))) for phi in and_exprs) and (all(
-            implies_helper((phi in B), (Not(phi) not in B)) for phi in B)) and (
-                   implies_helper(true_is_in_closer, (Literal(True) in B)))
+                     implies_helper(((phi.phi1 in B) and (phi.phi2 in B)), (phi in B)))) for phi in and_exprs)
+
+
 
     subsets = get_all_subsets(clouser)
     filter_size = len(clouser)
@@ -231,7 +237,7 @@ def get_q(clouser):
         filter_size += 1
     subsets = frozenset(filter(lambda x: len(x) == filter_size/2, subsets))
     return frozenset(
-        filter(lambda B: max_check(B) and logic_trace_check(B) and locality_trace_check(B), subsets))
+        filter(lambda B: logic_trace_check(B) and locality_trace_check(B), subsets))
 
 
 def get_to(q_0, q, closure):
@@ -285,7 +291,7 @@ def get_f(closure, q):
 
 def ltl_to_gnba(phi):
     clouser = (phi.simplify().sub())
-    clouser.remove(Not(True))
+    clouser = clouser - {Not(True)}
     q = get_q(clouser)
     q_0 = frozenset(filter(lambda B: (phi in B), q))
     q_new, delta = get_to(q_0, q, clouser)
@@ -294,7 +300,6 @@ def ltl_to_gnba(phi):
 
     def out_put_convert(elements, func):
         return frozenset([func(e) for e in elements])
-
     set_to_string_func = lambda B: frozenset([str(y) for y in B])
 
     string_delta = frozenset(
@@ -304,7 +309,7 @@ def ltl_to_gnba(phi):
     # return {'q': frozenset(out_put_convert(q, set_to_string_func)), 'sigma': out_put_convert(sigma, str),
     #         'delta': string_delta,
     #         'q0': out_put_convert(q_0, set_to_string_func), 'f': string_f}
-    return {'q': q, 'sigma': sigma,
+    return {'q': q, 'sigma': get_sigma(clouser),
                 'delta': delta,
                 'q0': q_0, 'f':f}
 
@@ -383,7 +388,7 @@ if __name__ == '__main__':
     expr = Always(Implies('a', Next('a')))
     print(expr.sub())
     print(expr.simplify())
-    a_until_b = Not(Until(a, b))
+    a_until_b = Until(a, b)
     always_a_until_b = Always(Until('a', 'b'))
     print(always_a_until_b)
     # exp = Not(always_a_until_b)
