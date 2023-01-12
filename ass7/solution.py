@@ -185,7 +185,7 @@ class Implies(Binary):
     def simplify(self):
         return Or(Not(self.phi1.simplify()), self.phi2.simplify()).simplify()
 
-
+# get all subsets after minimized
 def get_all_subsets(B):
     res = [[]]
     for e in B:
@@ -196,8 +196,10 @@ def get_all_subsets(B):
             curr = curr + [sub]
         res = res + curr
     return frozenset(frozenset(s) for s in res)
+
+
 def get_sigma(clouser):
-    all_options =  set(filter(lambda phi: isinstance(phi, Literal), clouser)) - {Literal(True)}
+    all_options = set(filter(lambda phi: isinstance(phi, Literal), clouser)) - {Literal(True)}
     res = [[]]
     for e in all_options:
         curr = []
@@ -206,6 +208,7 @@ def get_sigma(clouser):
             curr = curr + [sub]
         res = res + curr
     return frozenset(frozenset(s) for s in res)
+
 
 def implies_helper(A_bool, B_bool):
     return (not A_bool) or B_bool
@@ -216,28 +219,53 @@ def if_and_only_if(A_bool, B_bool):
 
 
 def get_q(clouser):
-
     def locality_trace_check(B):
         unarity_exprs = set(filter(lambda x: isinstance(x, Until), clouser))
         return all(
-            implies_helper((phi.phi2 in B), (phi in B)) and implies_helper(((phi in B) and (phi.phi2 not in B)), phi.phi1 in B) for
+            implies_helper((phi.phi2 in B), (phi in B)) and implies_helper(((phi in B) and (phi.phi2 not in B)),
+                                                                           phi.phi1 in B) for
             phi in unarity_exprs)
 
     def logic_trace_check(B):
         and_exprs = frozenset(filter(lambda x: isinstance(x, And), clouser))
-        return all(((implies_helper((phi in B), ((phi.phi1 in B) and (phi.phi2 in B))),
-                     implies_helper(((phi.phi1 in B) and (phi.phi2 in B)), (phi in B)))) for phi in and_exprs)
-
-
+        return all((if_and_only_if((phi in B), (((phi.phi1 in B) and (phi.phi2 in B))))
+                    for phi in and_exprs))
 
     subsets = get_all_subsets(clouser)
     filter_size = len(clouser)
     if Literal(True) in clouser:
         subsets = frozenset(filter(lambda x: Literal(True) in x, subsets))
         filter_size += 1
-    subsets = frozenset(filter(lambda x: len(x) == filter_size/2, subsets))
+    subsets = frozenset(filter(lambda x: len(x) == filter_size / 2, subsets))
     return frozenset(
         filter(lambda B: logic_trace_check(B) and locality_trace_check(B), subsets))
+
+
+def get_all_to(q, closure):
+
+    def check_cond_1(B):
+        next_exprs = list(filter(lambda phi: isinstance(phi, Next), closure))
+        return frozenset(
+            filter(lambda B_tag: all(if_and_only_if((phi in B), (phi.phi in B_tag)) for phi in next_exprs), q))
+
+    def check_cond_2(B):
+        unarity_exprs = frozenset(filter(lambda x: isinstance(x, Until), closure))
+        cond1 = frozenset(filter(
+            lambda B_tag: all(
+                implies_helper(((phi in B) and (phi.phi2 not in B)), (phi in B_tag)) for phi in unarity_exprs),
+            q))
+        cond2 = frozenset(filter(
+            lambda B_tag: all(
+                implies_helper(((phi not in B) and (phi.phi1 in B)), (phi not in B_tag)) for phi in unarity_exprs),
+            q))
+        return cond1 & cond2
+
+    ans = set()
+    for B in q:
+        A = frozenset(filter(lambda x: isinstance(x, Literal), (B.difference({Literal(True)}))))
+        all_to_opt = check_cond_1(B) & check_cond_2(B)
+        ans = ans | frozenset([(B, A, B_tag) for B_tag in all_to_opt])
+    return ans
 
 
 def get_to(q_0, q, closure):
@@ -249,7 +277,8 @@ def get_to(q_0, q, closure):
     def check_cond_2(B):
         unarity_exprs = frozenset(filter(lambda x: isinstance(x, Until), closure))
         cond1 = frozenset(filter(
-            lambda B_tag: all(implies_helper(((phi in B) and (phi.phi2 not in B)), (phi in B_tag)) for phi in unarity_exprs),
+            lambda B_tag: all(
+                implies_helper(((phi in B) and (phi.phi2 not in B)), (phi in B_tag)) for phi in unarity_exprs),
             q))
         cond2 = frozenset(filter(
             lambda B_tag: all(
@@ -290,16 +319,21 @@ def get_f(closure, q):
 
 
 def ltl_to_gnba(phi):
-    clouser = (phi.simplify().sub())
+    phi = phi.simplify()
+    clouser = (phi.sub())
     clouser = clouser - {Not(True)}
     q = get_q(clouser)
     q_0 = frozenset(filter(lambda B: (phi in B), q))
-    q_new, delta = get_to(q_0, q, clouser)
+    delta = get_all_to(q, clouser)
+    ##not need this
+    #q_sub_opt,_delta_sub_3 = get_to(q_0,q,clouser)
+
     sigma = frozenset([str(literal) for literal in frozenset(filter(lambda phi: isinstance(phi, Literal), clouser))])
     f = get_f(clouser, q)
 
     def out_put_convert(elements, func):
         return frozenset([func(e) for e in elements])
+
     set_to_string_func = lambda B: frozenset([str(y) for y in B])
 
     string_delta = frozenset(
@@ -310,8 +344,8 @@ def ltl_to_gnba(phi):
     #         'delta': string_delta,
     #         'q0': out_put_convert(q_0, set_to_string_func), 'f': string_f}
     return {'q': q, 'sigma': get_sigma(clouser),
-                'delta': delta,
-                'q0': q_0, 'f':f}
+            'delta': delta,
+            'q0': q_0, 'f': f}
 
 
 def print_hi(name):
@@ -325,7 +359,7 @@ class HashableSet(set):
 
     # Press the green button in the gutter to run the script.
 
-
+# for testing
 def get_ts():
     def function_creator(B, contidion, q):
         A = frozenset(filter(lambda x: isinstance(x, Literal), (B.difference({Literal(True)}))))
@@ -375,9 +409,26 @@ def get_ts():
             'q0': out_put_convert(q_0, set_to_string_func), 'f': string_f}
 
 
+
+a = Literal('a')
+b = Literal('b')
+delta_test = {(frozenset((Not(And(a, Not(Next(a)))), True, Next(a), Not(a), Until(True , And(a , Not(Next(a)))))), frozenset(), frozenset((True, a, Not(Next(a)), And(a, Not(Next(a))), Until(True , And(a , Not(Next(a))))))), (frozenset((Not(And(a , Not(Next(a)))), True, Not(Next(a)), Not(a), Until(True , And(a, Not(Next(a)))))), frozenset(), frozenset((Not(And(a, Not(Next(a)))), True, Not(Next(a)), Not(a), Until(True , And(a , Not(Next(a))))))), (frozenset((True, a, Not(Next(a)), And(a , Not(Next(a))), Until(True , And(a , Not(Next(a)))))), frozenset({a}), frozenset((Not(And(a , Not(Next(a)))), True, Next(a), Not(Until(True , And(a , Not(Next(a))))), Not(a)))), (frozenset((True, a, Not(Next(a)), And(a , Not((a))), Until(True , And(a ,Not(Next(a)))))), frozenset({a}), frozenset((Not(And(a , Not(Next(a)))), True, Not(Next(a)), Not(a), Until(True ,And(a , Not(Next(a))))))), (frozenset((Not(And(a , Not(Next(a)))), True, Not(Until(True , And(a , Not(Next(a))))), Not(Next(a)), Not(a))), frozenset(), frozenset((Not(And(a , Not(Next(a)))), True, Not(Until(True , And(a , Not(Next(a))))), Not(Next(a)), Not(a)))), (frozenset((True, a, Not(Next(a)), And(a , Not(Next(a))), Until(True , And(a , Not(Next(a)))))), frozenset({a}), frozenset((Not(And(a , Not(Next(a)))), True, Next(a), Not(a), Until(True , And(a , Not(Next(a))))))), (frozenset((Not(And(a , Not(Next(a)))), True, Not(Next(a)), Not(a), Until(True , And(a , Not(Next(a)))))), frozenset(), frozenset((Not(And(a , Not(Next(a)))), True, Next(a), Not(a), Until(True , And(a , Not(Next(a))))))), (frozenset((Not(And(a , Not(Next(a)))), True, Next(a), Not(Until(True , And(a , Not(Next(a))))), Not(a))), frozenset(), frozenset((Not(And(a , Not(Next(a)))), True, Next(a), Not(Until(True , And(a , Not(Next(a))))), a))), (frozenset((Not(And(a , Not(Next(a)))), True, Next(a), a, Until(True , And(a , Not(Next(a)))))), frozenset({a}), frozenset((Not(And(a , Not(Next(a)))), True, Next(a), a, Until(True , And(a , Not(Next(a))))))), (frozenset((Not(And(a , Not(Next(a)))), True, Next(a), Not(a), Until(True , And(a , Not(Next(a)))))), frozenset(), frozenset((Not(And(a , Not(Next(a)))), True, Next(a), a, Until(True , And(a , Not(Next(a))))))), (frozenset((True, a, Not(Next(a)), And(a , Not(Next(a))), Until(True , And(a , Not(Next(a)))))), frozenset({a}), frozenset((Not(And(a , Not(Next(a)))), True, Not(Until(True , And(a , Not(Next(a))))), Not(Next(a)), Not(a)))), (frozenset((Not(And(a , Not(Next(a)))), True, Next(a), a, Until(True , And(a , Not(Next(a)))))), frozenset({a}), frozenset((True, a, Not(Next(a)), And(a , Not(Next(a))), Until(True , And(a , Not(Next(a))))))), (frozenset((Not(And(a , Not(Next(a)))), True, Not(Until(True , And(a , Not(Next(a))))), Not(Next(a)), Not(a))), frozenset(), frozenset((Not(And(a , Not(Next(a)))), True, Next(a), Not(Until(True , And(a , Not(Next(a))))), Not(a)))), (frozenset((Not(And(a , Not(Next(a)))), True, Next(a), Not(Until(True , And(a , Not(Next(a))))), a)), frozenset({a}), frozenset((Not(And(a , Not(Next(a)))), True, Next(a), Not(Until(True , And(a , Not(Next(a))))), a)))}
+
+
+
+
+
 if __name__ == '__main__':
     print_hi('PyCharm')
-
+    expr = Always(Implies('a', Next('a')))
+    tt = ltl_to_gnba(expr)
+    not_good_to = set(tt.get('delta')) - delta_test
+    print(expr.sub())
+    print(expr.simplify())
+    print(len(delta_test))
+    # {True, Not((a /\ Not(O(a)))), O(a), Not(True), Not((True U (a /\ Not(O(a))))), (a /\ Not(O(a))), Not(O(a)), (True U (a /\ Not(O(a)))), Not(a), a}
+    phi = Not(Until(True, And('a', Not(Next('a')))))
+    curr_try = ltl_to_gnba(phi)
     s = {1, 2, 3}
     a = Literal('a')
     b = Literal('b')
@@ -385,9 +436,7 @@ if __name__ == '__main__':
     always_a = Always('s')
     print(always_a.simplify().sub())
     next_a = Next('a')
-    expr = Always(Implies('a', Next('a')))
-    print(expr.sub())
-    print(expr.simplify())
+
     a_until_b = Until(a, b)
     always_a_until_b = Always(Until('a', 'b'))
     print(always_a_until_b)
